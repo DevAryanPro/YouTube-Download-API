@@ -1,26 +1,27 @@
 const ytdl = require('ytdl-core');
 
 module.exports = async (req, res) => {
-  const { url } = req.query;
-
-  if (!url) {
-    return res.status(400).json({ error: 'URL parameter is required' });
-  }
-
   try {
-    const isValid = ytdl.validateURL(url);
-    if (!isValid) {
+    const { url } = req.query;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL parameter is required' });
+    }
+
+    if (!ytdl.validateURL(url)) {
       return res.status(400).json({ error: 'Invalid YouTube URL' });
     }
 
-    const info = (await ytdl.getInfo(url)).videoDetails;
-    const thumbnail = info.thumbnails[info.thumbnails.length - 1].url;
+    const info = await ytdl.getInfo(url);
+    const details = info.videoDetails;
+    const thumbnail = info.videoDetails.thumbnails.pop().url;
 
     return res.json({
-      title: info.title,
+      title: details.title,
       thumbnail: thumbnail,
-      duration: info.lengthSeconds,
-      author: info.author.name
+      duration: details.lengthSeconds,
+      author: details.author.name,
+      viewCount: details.viewCount
     });
   } catch (error) {
     console.error('Error:', error);
