@@ -5,36 +5,12 @@
     {
       "src": "api/*.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "api-docs.js",
-      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/youtube/(.*)",
-      "dest": "/api/youtube/$1"
-    },
-    {
-      "src": "/api-docs",
-      "dest": "/api-docs.js"
-    },
-    {
-      "src": "/",
-      "dest": "/api/index"
-    },
-    {
-      "src": "/youtube/info",
-      "dest": "/api/youtube/info"
-    },
-    {
-      "src": "/youtube/mp3",
-      "dest": "/api/youtube/mp3"
-    },
-    {
-      "src": "/youtube/mp4",
-      "dest": "/api/youtube/mp4"
+      "src": "/(.*)",
+      "dest": "/api/$1"
     }
   ]
 }
