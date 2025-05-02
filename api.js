@@ -5,213 +5,165 @@ const cors = require("cors");
 const app = express();
 app.use(cors());
 
-// Constants
-const API_NAME = "YouTube Download API";
-const API_VERSION = "1.0.0";
-const API_DESCRIPTION = "A professional API for fetching YouTube video information and downloading content in MP3/MP4 formats";
-const API_BASE_URL = "https://you-tube-download-api.vercel.app";
-
-// Helper function to validate YouTube URL
-const validateYouTubeUrl = (url) => {
-  return ytdl.validateURL(url) && ytdl.validateID(ytdl.getURLVideoID(url));
-};
+// Enhanced error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Global Error Handler:', err);
+  res.status(500).json({
+    error: "Internal Server Error",
+    message: err.message || "An error occurred while processing your request",
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
 
 // API Documentation Endpoint
 app.get("/", (req, res) => {
-  const documentation = {
-    api: API_NAME,
-    version: API_VERSION,
-    description: API_DESCRIPTION,
+  res.json({
+    api: "YouTube Download API",
+    status: "operational",
     endpoints: {
-      info: {
-        url: `${API_BASE_URL}/info?url={youtube_url}`,
-        description: "Get video information (title, thumbnail, etc.)",
-        parameters: {
-          url: "YouTube video URL (required)"
-        },
-        example: `${API_BASE_URL}/info?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ`
-      },
-      mp3: {
-        url: `${API_BASE_URL}/mp3?url={youtube_url}`,
-        description: "Download audio in MP3 format",
-        parameters: {
-          url: "YouTube video URL (required)"
-        },
-        example: `${API_BASE_URL}/mp3?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ`
-      },
-      mp4: {
-        url: `${API_BASE_URL}/mp4?url={youtube_url}`,
-        description: "Download video in MP4 format",
-        parameters: {
-          url: "YouTube video URL (required)"
-        },
-        example: `${API_BASE_URL}/mp4?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ`
-      }
+      info: "/info?url=YOUTUBE_URL",
+      mp3: "/mp3?url=YOUTUBE_URL",
+      mp4: "/mp4?url=YOUTUBE_URL"
     },
-    note: "All endpoints require a valid YouTube URL as a query parameter",
-    repository: "https://github.com/MatheusIshiyama/youtube-download-api"
-  };
-
-  res.json(documentation);
-});
-
-// Health Check Endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    example: "https://you-tube-download-api.vercel.app/info?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ"
   });
 });
 
 // Video Information Endpoint
-app.get("/info", async (req, res) => {
+app.get("/info", async (req, res, next) => {
   try {
     const { url } = req.query;
-
+    
     if (!url) {
-      return res.status(400).json({
-        error: "Missing URL parameter",
-        message: "Please provide a YouTube URL as a query parameter"
+      return res.status(400).json({ 
+        error: "Bad Request", 
+        message: "YouTube URL parameter is required" 
       });
     }
 
-    if (!validateYouTubeUrl(url)) {
-      return res.status(400).json({
-        error: "Invalid YouTube URL",
-        message: "The provided URL is not a valid YouTube video URL"
+    if (!ytdl.validateURL(url)) {
+      return res.status(400).json({ 
+        error: "Bad Request", 
+        message: "Invalid YouTube URL" 
       });
     }
 
-    const info = await ytdl.getInfo(url);
-    const { videoDetails } = info;
-
-    const response = {
-      id: videoDetails.videoId,
-      title: videoDetails.title,
-      description: videoDetails.description,
-      duration: videoDetails.lengthSeconds,
-      views: videoDetails.viewCount,
-      uploadDate: videoDetails.uploadDate,
-      author: {
-        name: videoDetails.author.name,
-        channelUrl: videoDetails.author.channel_url,
-        subscriberCount: videoDetails.author.subscriber_count
-      },
-      thumbnails: videoDetails.thumbnails,
-      formats: info.formats.map(format => ({
-        itag: format.itag,
-        mimeType: format.mimeType,
-        quality: format.quality,
-        qualityLabel: format.qualityLabel,
-        audioQuality: format.audioQuality,
-        url: format.url
-      })),
-      relatedVideos: info.related_videos
-    };
-
-    res.json(response);
-  } catch (error) {
-    console.error("Error in /info endpoint:", error);
-    res.status(500).json({
-      error: "Internal Server Error",
-      message: "An error occurred while processing your request"
+    const info = await ytdl.getInfo(url).catch(err => {
+      console.error('YTDL Info Error:', err);
+      throw new Error("Failed to fetch video information");
     });
+
+    const { title, thumbnails, lengthSeconds, viewCount } = info.videoDetails;
+    
+    res.json({
+      title,
+      duration: lengthSeconds,
+      views: viewCount,
+      thumbnail: thumbnails[thumbnails.length - 1].url,
+      formats: info.formats.map(f => ({
+        itag: f.itag,
+        quality: f.qualityLabel,
+        mimeType: f.mimeType,
+        url: f.url
+      }))
+    });
+
+  } catch (err) {
+    next(err); // Pass to error handling middleware
   }
 });
 
 // MP3 Download Endpoint
-app.get("/mp3", async (req, res) => {
+app.get("/mp3", async (req, res, next) => {
   try {
     const { url } = req.query;
-
-    if (!url) {
-      return res.status(400).json({
-        error: "Missing URL parameter",
-        message: "Please provide a YouTube URL as a query parameter"
-      });
-    }
-
-    if (!validateYouTubeUrl(url)) {
-      return res.status(400).json({
-        error: "Invalid YouTube URL",
-        message: "The provided URL is not a valid YouTube video URL"
-      });
-    }
-
-    const info = await ytdl.getInfo(url);
-    const videoName = info.videoDetails.title.replace(/[^\w\s]/gi, '');
     
-    res.header("Content-Disposition", `attachment; filename="${videoName}.mp3"`);
-    res.header("Content-Type", "audio/mpeg");
+    if (!url) {
+      return res.status(400).json({ 
+        error: "Bad Request", 
+        message: "YouTube URL parameter is required" 
+      });
+    }
+
+    if (!ytdl.validateURL(url)) {
+      return res.status(400).json({ 
+        error: "Bad Request", 
+        message: "Invalid YouTube URL" 
+      });
+    }
+
+    const info = await ytdl.getInfo(url).catch(err => {
+      console.error('YTDL Info Error:', err);
+      throw new Error("Failed to fetch video information");
+    });
+
+    const title = info.videoDetails.title.replace(/[^\w\s]/gi, '');
+    
+    res.header('Content-Disposition', `attachment; filename="${title}.mp3"`);
+    res.header('Content-Type', 'audio/mpeg');
 
     ytdl(url, {
-      quality: "highestaudio",
-      filter: "audioonly",
-      format: "mp3"
+      quality: 'highestaudio',
+      filter: 'audioonly',
+    }).on('error', err => {
+      console.error('YTDL Stream Error:', err);
+      res.status(500).json({ 
+        error: "Download Failed", 
+        message: "Error while streaming audio" 
+      });
     }).pipe(res);
 
-  } catch (error) {
-    console.error("Error in /mp3 endpoint:", error);
-    res.status(500).json({
-      error: "Internal Server Error",
-      message: "An error occurred while processing your request"
-    });
+  } catch (err) {
+    next(err);
   }
 });
 
 // MP4 Download Endpoint
-app.get("/mp4", async (req, res) => {
+app.get("/mp4", async (req, res, next) => {
   try {
-    const { url, quality } = req.query;
-
+    const { url, quality = 'highest' } = req.query;
+    
     if (!url) {
-      return res.status(400).json({
-        error: "Missing URL parameter",
-        message: "Please provide a YouTube URL as a query parameter"
+      return res.status(400).json({ 
+        error: "Bad Request", 
+        message: "YouTube URL parameter is required" 
       });
     }
 
-    if (!validateYouTubeUrl(url)) {
-      return res.status(400).json({
-        error: "Invalid YouTube URL",
-        message: "The provided URL is not a valid YouTube video URL"
+    if (!ytdl.validateURL(url)) {
+      return res.status(400).json({ 
+        error: "Bad Request", 
+        message: "Invalid YouTube URL" 
       });
     }
 
-    const info = await ytdl.getInfo(url);
-    const videoName = info.videoDetails.title.replace(/[^\w\s]/gi, '');
-    
-    res.header("Content-Disposition", `attachment; filename="${videoName}.mp4"`);
-    res.header("Content-Type", "video/mp4");
+    const info = await ytdl.getInfo(url).catch(err => {
+      console.error('YTDL Info Error:', err);
+      throw new Error("Failed to fetch video information");
+    });
 
-    const requestedQuality = quality || "highest";
+    const title = info.videoDetails.title.replace(/[^\w\s]/gi, '');
     
+    res.header('Content-Disposition', `attachment; filename="${title}.mp4"`);
+    res.header('Content-Type', 'video/mp4');
+
     ytdl(url, {
-      quality: requestedQuality,
-      filter: format => format.container === 'mp4'
+      quality,
+      filter: format => format.container === 'mp4',
+    }).on('error', err => {
+      console.error('YTDL Stream Error:', err);
+      res.status(500).json({ 
+        error: "Download Failed", 
+        message: "Error while streaming video" 
+      });
     }).pipe(res);
 
-  } catch (error) {
-    console.error("Error in /mp4 endpoint:", error);
-    res.status(500).json({
-      error: "Internal Server Error",
-      message: "An error occurred while processing your request"
-    });
+  } catch (err) {
+    next(err);
   }
 });
 
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    error: "Internal Server Error",
-    message: "Something went wrong on our end"
-  });
-});
-
-// Start Server
 const PORT = process.env.PORT || 3500;
 app.listen(PORT, () => {
-  console.log(`${API_NAME} v${API_VERSION} running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
