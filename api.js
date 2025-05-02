@@ -48,7 +48,7 @@ app.get("/info", async (req, res, next) => {
       });
     }
 
-    const info = await ytdl.getInfo(url).catch(err => {
+    const info = await ytdl.getInfo(url, { requestOptions: { headers: { 'User-Agent': 'Mozilla/5.0' } } }).catch(err => {
       console.error('YTDL Info Error:', err);
       throw new Error("Failed to fetch video information");
     });
@@ -92,7 +92,7 @@ app.get("/mp3", async (req, res, next) => {
       });
     }
 
-    const info = await ytdl.getInfo(url).catch(err => {
+    const info = await ytdl.getInfo(url, { requestOptions: { headers: { 'User-Agent': 'Mozilla/5.0' } } }).catch(err => {
       console.error('YTDL Info Error:', err);
       throw new Error("Failed to fetch video information");
     });
@@ -105,6 +105,7 @@ app.get("/mp3", async (req, res, next) => {
     ytdl(url, {
       quality: 'highestaudio',
       filter: 'audioonly',
+      requestOptions: { headers: { 'User-Agent': 'Mozilla/5.0' } }
     }).on('error', err => {
       console.error('YTDL Stream Error:', err);
       res.status(500).json({ 
@@ -137,7 +138,7 @@ app.get("/mp4", async (req, res, next) => {
       });
     }
 
-    const info = await ytdl.getInfo(url).catch(err => {
+    const info = await ytdl.getInfo(url, { requestOptions: { headers: { 'User-Agent': 'Mozilla/5.0' } } }).catch(err => {
       console.error('YTDL Info Error:', err);
       throw new Error("Failed to fetch video information");
     });
@@ -150,6 +151,7 @@ app.get("/mp4", async (req, res, next) => {
     ytdl(url, {
       quality,
       filter: format => format.container === 'mp4',
+      requestOptions: { headers: { 'User-Agent': 'Mozilla/5.0' } }
     }).on('error', err => {
       console.error('YTDL Stream Error:', err);
       res.status(500).json({ 
@@ -163,7 +165,4 @@ app.get("/mp4", async (req, res, next) => {
   }
 });
 
-const PORT = process.env.PORT || 3500;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+module.exports = app;
